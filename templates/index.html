@@ -3,889 +3,1048 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EV Charger Security Dashboard</title>
+<title>GridSentinel · Site Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script>try { document.documentElement.dataset.theme = localStorage.getItem('gs-theme') || 'light'; } catch { document.documentElement.dataset.theme = 'light'; }</script>
 <style>
-/* ── Reset & Base ──────────────────────────────────────────────────────── */
+/* ── Tokens (IBM Carbon–style) ──────────────────────────────────────────── */
+:root,[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f2f4f8; --surface:#ffffff; --surface-2:#f7f8fa; --hover:#e8ebf0; --selected:#e0e8f6;
+  --border:#dde1e6; --border-strong:#a8b0ba;
+  --text:#161616; --text-2:#525252; --text-3:#6f6f6f;
+  --accent:#0f62fe; --accent-hover:#0353e9; --accent-soft:#edf5ff;
+  --ok:#24a148; --warn:#f1c21b; --serious:#ff832b; --crit:#da1e28; --maint:#8a3ffc; --info:#0f62fe;
+  --warn-glyph:#161616;
+  --n-crit:#fff1f1; --n-warn:#fcf4d6; --n-maint:#f6f2ff;
+  --side:#ffffff;
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#161616; --surface:#262626; --surface-2:#2c2c2c; --hover:#333333; --selected:#2b3a55;
+  --border:#393939; --border-strong:#6f6f6f;
+  --text:#f4f4f4; --text-2:#c6c6c6; --text-3:#a8a8a8;
+  --accent:#4589ff; --accent-hover:#6ea6ff; --accent-soft:#1c2a45;
+  --ok:#42be65; --warn:#f1c21b; --serious:#ff832b; --crit:#fa4d56; --maint:#a56eff; --info:#4589ff;
+  --n-crit:#3a1c1e; --n-warn:#3a3320; --n-maint:#2c2440;
+  --side:#1e1e1e;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{
-  font-family:'Consolas','Courier New',monospace;
-  background:#0a0a15;color:#cdd6f4;
-  overflow:hidden;height:100vh;
-  display:flex;flex-direction:column;
-}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{font:14px/1.45 "IBM Plex Sans",system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ic{width:16px;height:16px;flex:none;fill:currentColor}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
+.t2{color:var(--text-2)}
+.t3{color:var(--text-3)}
 
-/* ── Scanlines Overlay ─────────────────────────────────────────────────── */
-.scanlines{
-  position:fixed;top:0;left:0;width:100%;height:100%;
-  background:repeating-linear-gradient(0deg,rgba(0,0,0,0.03) 0px,rgba(0,0,0,0.03) 1px,transparent 1px,transparent 3px);
-  pointer-events:none;z-index:9999;
-}
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+.header{position:fixed;inset:0 0 auto 0;height:48px;z-index:30;display:flex;align-items:center;background:#161616;color:#f4f4f4;border-bottom:1px solid #393939}
+.header .prod{display:flex;align-items:center;gap:10px;padding:0 16px;height:100%;min-width:232px;white-space:nowrap;border-right:1px solid #393939;font-size:14px}
+.header .prod b{font-weight:600}
+.header .prod span{color:#c6c6c6}
+.header .crumbs{padding:0 20px;font-size:13px;color:#c6c6c6;display:flex;gap:8px;align-items:center}
+.header .crumbs b{color:#f4f4f4;font-weight:500}
+.header .tools{margin-left:auto;display:flex;align-items:center;height:100%}
+.header .tools>*{height:100%;display:flex;align-items:center;gap:8px;padding:0 14px;border-left:1px solid #393939;font-size:12.5px;color:#c6c6c6}
+.header .hbtn{background:none;border:0;border-left:1px solid #393939;cursor:pointer;color:#c6c6c6}
+.header .hbtn:hover{background:#333;color:#fff}
+.src-dot{width:8px;height:8px;border-radius:50%;background:#8d8d8d}
+.src[data-s="live"] .src-dot{background:#42be65}
+.src[data-s="sim"] .src-dot{background:#f1c21b}
+.src[data-s="down"] .src-dot{background:#fa4d56}
+.src[data-s="down"]{color:#ff8389}
 
-/* ── Header ────────────────────────────────────────────────────────────── */
-.dashboard-header{
-  background:linear-gradient(90deg,rgba(10,10,21,0.97),rgba(30,30,46,0.97),rgba(10,10,21,0.97));
-  border-bottom:1px solid rgba(137,180,250,0.3);
-  padding:8px 20px;display:flex;justify-content:space-between;align-items:center;
-  box-shadow:0 0 30px rgba(137,180,250,0.1);z-index:10;
-}
-.header-title{
-  font-size:16px;font-weight:bold;color:#89b4fa;
-  text-shadow:0 0 15px rgba(137,180,250,0.6);letter-spacing:3px;
-}
-.header-status{display:flex;align-items:center;gap:14px;}
-.status-badge{
-  padding:4px 12px;border-radius:4px;font-size:11px;font-weight:bold;letter-spacing:1px;
-}
-.status-normal{background:rgba(166,227,161,0.15);color:#a6e3a1;border:1px solid rgba(166,227,161,0.3);}
-.status-attack{
-  background:rgba(243,139,168,0.2);color:#f38ba8;border:1px solid rgba(243,139,168,0.5);
-  animation:statusPulse 1s ease-in-out infinite;
-}
-@keyframes statusPulse{
-  0%,100%{box-shadow:0 0 5px rgba(243,139,168,0.3);}
-  50%{box-shadow:0 0 20px rgba(243,139,168,0.7);}
-}
-.mode-badge{
-  padding:4px 10px;border-radius:4px;font-size:10px;font-weight:bold;letter-spacing:1px;
-  background:rgba(249,226,175,0.15);color:#f9e2af;border:1px solid rgba(249,226,175,0.3);
-}
-.clock{color:#6c7086;font-size:12px;letter-spacing:1px;}
+.side{position:fixed;top:48px;bottom:0;left:0;width:232px;z-index:20;background:var(--side);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 0;overflow-y:auto}
+.side .grp{font-size:12px;color:var(--text-3);padding:12px 16px 6px}
+.side a{display:flex;align-items:center;gap:12px;height:36px;padding:0 16px;font-size:14px;color:var(--text-2);border-left:3px solid transparent}
+.side a:hover{background:var(--hover);color:var(--text)}
+.side a.on{background:var(--hover);color:var(--text);font-weight:500;border-left-color:var(--accent)}
+.side .ic{width:16px;height:16px}
+.side .foot{margin-top:auto;padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.6}
+.side .foot b{color:var(--text-2);font-weight:500}
 
-/* ── Alert Banner ──────────────────────────────────────────────────────── */
-.alert-banner{
-  display:none;
-  background:linear-gradient(90deg,#1e1e2e,#3b0000,#1e1e2e);
-  border-bottom:2px solid #f38ba8;padding:10px 20px;
-  text-align:center;font-size:15px;font-weight:bold;color:#f38ba8;
-  text-shadow:0 0 15px rgba(243,139,168,0.8);
-  animation:alertPulse 1s ease-in-out infinite;z-index:10;
-}
-.alert-banner.active{display:block;}
-@keyframes alertPulse{
-  0%,100%{border-color:#f38ba8;box-shadow:0 0 20px rgba(243,139,168,0.2);}
-  50%{border-color:#ff0000;box-shadow:0 0 50px rgba(255,0,0,0.5);}
-}
+.main{margin:48px 0 0 232px;padding:24px 32px 40px}
+.page-h{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px}
+.page-h h1{font-size:24px;font-weight:400;line-height:1.25}
+.page-h p{font-size:13px;color:var(--text-2);margin-top:4px}
+.page-h .actions{margin-left:auto;display:flex;gap:8px}
 
-/* ── Main Content ──────────────────────────────────────────────────────── */
-.main-content{display:flex;flex:1;min-height:0;overflow:hidden;}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;margin-bottom:16px;align-items:start}
+.c4{grid-column:span 4}.c5{grid-column:span 5}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:1/-1}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:4px;min-width:0}
+.card-h{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--border)}
+.card-h h2{font-size:14px;font-weight:600}
+.card-h .sub{font-size:12.5px;color:var(--text-3)}
+.card-h .tools{margin-left:auto;display:flex;align-items:center;gap:8px}
+.card-b{padding:16px}
 
-/* ── 3D Scene ──────────────────────────────────────────────────────────── */
-.three-container{flex:3;position:relative;overflow:hidden;background:#0a0a15;}
-.three-container canvas{display:block;}
+/* ── Controls ───────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:32px;padding:0 14px;border-radius:2px;border:1px solid transparent;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover:not(:disabled){background:var(--accent-hover)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.sec{background:transparent;border-color:var(--border-strong);color:var(--text)}
+.btn.sec:hover:not(:disabled){background:var(--hover)}
+.btn.danger{background:var(--crit);color:#fff}
+.btn.danger:hover:not(:disabled){filter:brightness(.92)}
+.btn.ghost{background:transparent;color:var(--accent);padding:0 10px}
+.btn.ghost:hover{background:var(--hover)}
+.btn .ic{width:14px;height:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;color:var(--text-2)}
+.input,.select{height:32px;padding:0 10px;border:0;border-bottom:1px solid var(--border-strong);border-radius:0;background:var(--surface-2);outline:none}
+.input:focus,.select:focus{outline:2px solid var(--accent);outline-offset:-2px}
+.input[aria-invalid="true"]{outline:2px solid var(--crit);outline-offset:-2px}
+.err{font-size:12px;color:var(--crit);min-height:16px}
+.select.sm{height:28px;font-size:12.5px}
 
-/* ── Right Panel ───────────────────────────────────────────────────────── */
-.right-panel{
-  flex:2;display:flex;flex-direction:column;gap:8px;padding:8px;
-  max-width:400px;min-width:300px;z-index:5;
-}
+/* ── Status indicator: colored icon + neutral text ──────────────────────── */
+.st{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.st .ic{width:16px;height:16px}
+.st-ok .ic{color:var(--ok)} .st-warn .ic{color:var(--warn)} .st-crit .ic{color:var(--crit)}
+.st-maint .ic{color:var(--maint)} .st-info .ic{color:var(--info)} .st-neutral .ic{color:var(--text-3)}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:2px;font-size:12px;background:var(--hover);color:var(--text-2)}
+.tag.blue{background:var(--accent-soft);color:var(--accent)}
 
-/* ── Fleet Table ───────────────────────────────────────────────────────── */
-.fleet-panel{
-  background:rgba(30,30,46,0.8);backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
-  border:1px solid rgba(137,180,250,0.25);border-radius:12px;
-  padding:12px 14px;
-  box-shadow:0 0 30px rgba(137,180,250,0.08),inset 0 0 40px rgba(137,180,250,0.03);
-  flex:1;overflow-y:auto;
-}
-.fleet-title{font-size:13px;font-weight:bold;color:#89b4fa;margin-bottom:8px;letter-spacing:2px;}
-.fleet-table{width:100%;border-collapse:collapse;}
-.fleet-table th{
-  color:#6c7086;font-size:10px;text-align:left;padding:5px 8px;
-  border-bottom:1px solid rgba(69,71,90,0.5);letter-spacing:1px;text-transform:uppercase;
-}
-.fleet-table td{padding:5px 8px;font-size:13px;border-bottom:1px solid rgba(69,71,90,0.15);}
-.fleet-row{transition:background 0.3s;}
-.fleet-row:hover{background:rgba(137,180,250,0.05);}
-.fleet-row.row-alert{animation:rowFlash 0.5s ease-in-out 3;}
-@keyframes rowFlash{0%,100%{background:transparent;}50%{background:rgba(243,139,168,0.15);}}
-.node-id{color:#cdd6f4;font-weight:bold;}
-.trust-green{color:#a6e3a1;font-weight:bold;}
-.trust-yellow{color:#f9e2af;font-weight:bold;}
-.trust-red{color:#f38ba8;font-weight:bold;}
-.state-badge{font-weight:bold;font-size:11px;letter-spacing:0.5px;}
-.badge-green{color:#a6e3a1;text-shadow:0 0 8px rgba(166,227,161,0.4);}
-.badge-yellow{color:#f9e2af;text-shadow:0 0 8px rgba(249,226,175,0.4);}
-.badge-red{color:#f38ba8;text-shadow:0 0 8px rgba(243,139,168,0.5);font-weight:900;}
-.kw-value{color:#f9e2af;font-weight:bold;}
+/* ── Notification ───────────────────────────────────────────────────────── */
+.note{display:none;align-items:flex-start;gap:12px;padding:12px 16px;margin-bottom:16px;border:1px solid var(--border);border-left:3px solid;background:var(--surface);font-size:13.5px}
+.note.show{display:flex}
+.note .ic{width:20px;height:20px;margin-top:1px}
+.note.crit{border-left-color:var(--crit);background:var(--n-crit)} .note.crit>.ic{color:var(--crit)}
+.note.warn{border-left-color:var(--warn);background:var(--n-warn)} .note.warn>.ic{color:var(--warn)}
+.note.maint{border-left-color:var(--maint);background:var(--n-maint)} .note.maint>.ic{color:var(--maint)}
+.note b{font-weight:600;margin-right:6px}
+.note .act{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--text-2)}
 
-/* ── Gauge Panel ───────────────────────────────────────────────────────── */
-.gauge-panel{
-  background:rgba(30,30,46,0.8);backdrop-filter:blur(16px);
-  border:1px solid rgba(137,180,250,0.25);border-radius:12px;
-  padding:8px;text-align:center;
-  box-shadow:0 0 30px rgba(137,180,250,0.08);
-}
-.gauge-title{font-size:11px;color:#6c7086;letter-spacing:2px;margin-bottom:2px;}
-#gauge-canvas{width:100%;max-height:170px;}
+/* ── KPI strip ──────────────────────────────────────────────────────────── */
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--surface);border:1px solid var(--border);border-radius:4px;margin-bottom:16px}
+.kpi{padding:14px 18px;border-left:1px solid var(--border);min-width:0}
+.kpi:first-child{border-left:0}
+.kpi .k{font-size:12px;color:var(--text-2)}
+.kpi .v{font-size:24px;font-weight:400;line-height:1.3;margin-top:4px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.kpi .v small{font-size:13px;color:var(--text-2)}
+.kpi .v .ic{width:20px;height:20px}
+.kpi .d{font-size:12px;color:var(--text-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi canvas{display:block;width:100%;height:22px;margin-top:4px}
 
-/* ── Red Team Panel ────────────────────────────────────────────────────── */
-.redteam-panel{
-  background:rgba(20,20,35,0.95);
-  border-top:1px solid rgba(243,139,168,0.3);border-bottom:1px solid rgba(243,139,168,0.3);
-  padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  box-shadow:0 0 25px rgba(243,139,168,0.08);z-index:10;
-}
-.redteam-title{
-  font-size:12px;font-weight:bold;color:#f38ba8;letter-spacing:2px;
-  text-shadow:0 0 10px rgba(243,139,168,0.5);white-space:nowrap;
-}
-.target-select{
-  background:rgba(49,50,68,0.9);color:#cdd6f4;
-  border:1px solid rgba(137,180,250,0.3);padding:7px 12px;
-  border-radius:6px;font-family:inherit;font-size:12px;outline:none;
-  cursor:pointer;
-}
-.target-select:focus{border-color:#89b4fa;box-shadow:0 0 10px rgba(137,180,250,0.3);}
-.btn-attack{
-  padding:7px 14px;border:1px solid;border-radius:6px;
-  font-family:inherit;font-size:11px;font-weight:bold;
-  cursor:pointer;transition:all 0.2s;letter-spacing:0.5px;
-}
-.btn-tamper-on{
-  background:linear-gradient(135deg,#3a0000,#6b0000);border-color:#f38ba8;color:#f38ba8;
-  box-shadow:0 0 12px rgba(243,139,168,0.25);
-}
-.btn-tamper-on:hover{box-shadow:0 0 25px rgba(243,139,168,0.6);transform:scale(1.05);}
-.btn-tamper-off{background:rgba(49,50,68,0.8);border-color:#a6e3a1;color:#a6e3a1;}
-.btn-tamper-off:hover{box-shadow:0 0 15px rgba(166,227,161,0.3);transform:scale(1.05);}
-.btn-usb-on{
-  background:linear-gradient(135deg,#2a1500,#5a2000);border-color:#fab387;color:#fab387;
-  box-shadow:0 0 12px rgba(250,179,135,0.25);
-}
-.btn-usb-on:hover{box-shadow:0 0 25px rgba(250,179,135,0.6);transform:scale(1.05);}
-.btn-usb-off{background:rgba(49,50,68,0.8);border-color:#a6e3a1;color:#a6e3a1;}
-.btn-usb-off:hover{box-shadow:0 0 15px rgba(166,227,161,0.3);transform:scale(1.05);}
+/* ── Single-line diagram ────────────────────────────────────────────────── */
+.sld{display:block;width:100%;height:auto}
+.sld text{fill:var(--text);font-family:"IBM Plex Sans",sans-serif}
+.sld .lbl{font-size:11px;fill:var(--text-2)}
+.sld .wire{stroke:var(--text-2);stroke-width:1.5;fill:none}
+.sld .bus{stroke:var(--text);stroke-width:4}
+.sld .xf{fill:none;stroke:var(--text-2);stroke-width:1.5}
+.sld .node{cursor:pointer;outline:none}
+.sld .box{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
+.sld .node:hover .box{fill:var(--hover)}
+.sld .node:focus-visible .box,.sld .node.sel .box{stroke:var(--accent);stroke-width:2}
+.sld .bar{fill:var(--ok)}
+.sld .dot{fill:var(--ok)}
+.sld [data-tone="warn"] .bar,.sld [data-tone="warn"] .dot{fill:var(--warn)}
+.sld [data-tone="crit"] .bar,.sld [data-tone="crit"] .dot{fill:var(--crit)}
+.sld [data-tone="maint"] .bar,.sld [data-tone="maint"] .dot{fill:var(--maint)}
+.sld .brk{fill:var(--text-2)}
+.sld .brk-open{stroke:var(--crit);stroke-width:2;display:none}
+.sld [data-iso="1"] .brk{fill:var(--surface);stroke:var(--crit);stroke-width:1.5}
+.sld [data-iso="1"] .brk-open{display:inline}
+.sld [data-iso="1"] .feeder{stroke-dasharray:4 4;stroke:var(--border-strong)}
+.sld .id{font-size:13px;font-weight:600}
+.sld .kw{font-size:17px;font-weight:500}
+.sld .meta{font-size:11px;fill:var(--text-2)}
+.sld .phys{font-size:10px;fill:var(--accent);font-weight:600;letter-spacing:.04em}
+.sld-legend{display:flex;gap:20px;padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-2)}
+.sld-legend span{display:inline-flex;align-items:center;gap:6px}
 
-/* ── Event Log ─────────────────────────────────────────────────────────── */
-.event-log{
-  background:rgba(0,0,0,0.9);border-top:1px solid rgba(166,227,161,0.2);
-  padding:6px 15px;height:120px;overflow-y:auto;z-index:10;
-}
-.log-header{
-  font-size:10px;color:#6c7086;letter-spacing:2px;margin-bottom:4px;
-  border-bottom:1px solid rgba(69,71,90,0.3);padding-bottom:3px;
-}
-.log-entry{
-  font-size:11px;line-height:1.5;color:#a6e3a1;
-  text-shadow:0 0 4px rgba(166,227,161,0.25);
-}
-.log-time{color:#6c7086;}
+/* ── Physical node ──────────────────────────────────────────────────────── */
+.kv{display:grid;grid-template-columns:auto 1fr;font-size:13px}
+.kv dt,.kv dd{padding:8px 0;border-bottom:1px solid var(--border)}
+.kv dt{color:var(--text-2);padding-right:16px;white-space:nowrap}
+.kv dd{text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv dd .st{justify-content:flex-end}
+.chart-h{display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 6px;font-size:12px;color:var(--text-2)}
+.chart-h b{font-size:16px;font-weight:500;color:var(--text)}
+#dist-chart{display:block;width:100%;height:150px;cursor:crosshair}
+.subsec{border-top:1px solid var(--border);margin-top:16px;padding-top:14px}
+.subsec h3{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+#maint-st{margin-left:auto;font-weight:400;font-size:12.5px}
+.code-row{display:flex;gap:8px}
+.code-row .input{flex:1;min-width:0;letter-spacing:.25em}
+.maint-on{display:none;align-items:center;gap:16px}
+#station[data-maint="1"] .maint-on{display:flex}
+#station[data-maint="1"] #maint-form{display:none}
+.maint-on .v{font-size:20px}
+.maint-on .btn{margin-left:auto}
 
-/* ── 3D Labels (CSS2DRenderer) ─────────────────────────────────────────── */
-.charger-label{
-  color:#cdd6f4;font-family:'Consolas',monospace;font-size:10px;font-weight:bold;
-  text-shadow:0 0 8px rgba(137,180,250,0.8);
-  padding:2px 6px;background:rgba(10,10,21,0.7);
-  border:1px solid rgba(137,180,250,0.35);border-radius:3px;
-  letter-spacing:1px;pointer-events:none;white-space:nowrap;
-}
-.charger-label.label-throttled{
-  border-color:rgba(249,226,175,0.5);text-shadow:0 0 8px rgba(249,226,175,0.8);color:#f9e2af;
-}
-.charger-label.label-isolated{
-  border-color:rgba(243,139,168,0.6);text-shadow:0 0 10px rgba(243,139,168,0.9);color:#f38ba8;
-  animation:labelBlink 0.5s ease-in-out infinite;
-}
-@keyframes labelBlink{0%,100%{opacity:1;}50%{opacity:0.5;}}
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+.tbl-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{position:sticky;top:0;z-index:1;background:var(--surface-2);text-align:left;font-weight:600;font-size:12.5px;color:var(--text);padding:0 16px;height:40px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:0 16px;height:44px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--hover)}
+.num{text-align:right}
+.click tbody tr{cursor:pointer}
+.click tbody tr.sel{background:var(--selected)}
+.empty td{color:var(--text-3);text-align:center;height:72px}
+.trust{display:flex;align-items:center;gap:8px}
+.trust .bar{width:56px;height:4px;background:var(--hover)}
+.trust .bar i{display:block;height:100%;background:var(--text-2)}
+td canvas{display:block;width:96px;height:22px}
+.log td{height:auto;padding:9px 16px;white-space:normal}
+.log td:nth-child(1),.log td:nth-child(2){white-space:nowrap;width:1%}
+.log-wrap{max-height:360px;overflow:auto}
 
-/* ── Distance Readout ──────────────────────────────────────────────────── */
-.distance-badge{
-  position:absolute;bottom:10px;left:10px;z-index:10;
-  background:rgba(30,30,46,0.8);border:1px solid rgba(137,180,250,0.3);
-  border-radius:6px;padding:5px 10px;font-size:10px;color:#6c7086;
-  backdrop-filter:blur(8px);
-}
-.distance-badge .dist-val{color:#89b4fa;font-weight:bold;}
+.sim p{font-size:13px;color:var(--text-2);margin-bottom:12px}
+.sim .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 
-/* ── Scrollbar ─────────────────────────────────────────────────────────── */
-::-webkit-scrollbar{width:4px;}
-::-webkit-scrollbar-track{background:rgba(0,0,0,0.2);}
-::-webkit-scrollbar-thumb{background:rgba(137,180,250,0.3);border-radius:2px;}
+.tip{position:fixed;z-index:50;pointer-events:none;padding:8px 10px;background:#393939;color:#f4f4f4;font-size:12px;line-height:1.5;border-radius:2px;min-width:140px}
+.tip .row{display:flex;justify-content:space-between;gap:14px}
+.tip .row span:first-child{color:#c6c6c6}
+
+#toasts{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;flex-direction:column;gap:8px;width:340px}
+.toast{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--info);box-shadow:0 2px 6px rgba(0,0,0,.18);font-size:13px}
+.toast.crit{border-left-color:var(--crit)} .toast.warn{border-left-color:var(--warn)} .toast.maint{border-left-color:var(--maint)} .toast.ok{border-left-color:var(--ok)}
+
+/* ── Views ──────────────────────────────────────────────────────────────── */
+.cols{display:grid;grid-template-columns:minmax(0,2fr) minmax(360px,1fr);gap:16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.main:not([data-view="overview"]) .cols{display:flex;flex-direction:column}
+.col:not(:has(>.card:not([hidden]))){display:none}
+.hbars{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px 14px;align-items:center;font-size:13px}
+.hbars .lbl{font-weight:600;white-space:nowrap}
+.hbars .track{height:14px;background:var(--hover);position:relative}
+.hbars .fill{position:absolute;inset:0 auto 0 0;background:var(--accent);transition:width .4s}
+.hbars .val{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--text-2);text-align:right;min-width:64px}
+[data-view="station"] #station .card-b{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:32px}
+[data-view="station"] .chart-h{margin-top:0}
+[data-view="station"] #activity .log-wrap{max-height:none}
+[data-view="station"] #dist-chart{height:260px}
+[data-view="events"] .log-wrap{max-height:calc(100vh - 230px)}
+[data-view="topology"] .sld{max-height:calc(100vh - 360px)}
+.card-h .btn.ghost{height:28px;font-size:12.5px}
+.side .count{margin-left:auto;min-width:20px;height:18px;padding:0 6px;border-radius:9px;background:var(--crit);color:#fff;font-size:11px;font-weight:600;display:inline-grid;place-items:center}
+
+/* ── Docked test harness ────────────────────────────────────────────────── */
+.harness{margin:16px 12px 12px;padding:12px;border:1px solid var(--border);border-top:2px solid var(--serious);background:var(--surface-2)}
+.harness h4{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.harness h4 .ic{color:var(--serious)}
+.harness label{display:block;font-size:12px;color:var(--text-2)}
+.harness .select{width:100%;margin-top:4px;background:var(--surface)}
+.harness .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.harness .btn{height:30px;padding:0 6px;font-size:12.5px}
+.harness .btn.busy{opacity:.6;pointer-events:none}
+.harness p{font-size:11.5px;color:var(--text-3);margin-top:10px;line-height:1.4}
+
+@media (max-width:1280px){
+  .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .kpi:nth-child(4){border-left:0}
+  .kpi:nth-child(n+4){border-top:1px solid var(--border)}
+  .cols{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:900px){
+  .header .prod span,.header .crumbs{display:none}
+  .side{position:static;width:auto;margin-top:48px;border-right:0;border-bottom:1px solid var(--border)}
+  .side .foot{display:none}
+  .header .prod{width:auto}
+  .main{margin:0;padding:16px}
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi{border-left:0;border-top:1px solid var(--border)}
+  .page-h{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 
-<div class="scanlines"></div>
+<!-- Filled status icons (Carbon-style) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7"/><path d="m4.8 8.2 2.1 2.1 4.3-4.6" fill="none" stroke="#fff" stroke-width="1.6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.2 15.2 14.5H.8z"/><path d="M8 6v4" stroke="#161616" stroke-width="1.5"/><circle cx="8" cy="12.2" r=".9" fill="#161616"/></symbol>
+  <symbol id="i-crit" viewBox="0 0 16 16"><path d="M5.1 1h5.8L15 5.1v5.8L10.9 15H5.1L1 10.9V5.1z"/><path d="m5.5 5.5 5 5m0-5-5 5" stroke="#fff" stroke-width="1.6"/></symbol>
+  <symbol id="i-maint" viewBox="0 0 16 16"><path d="M8 .8 14 3v5c0 3.6-2.6 6.3-6 7.2C4.6 14.3 2 11.6 2 8V3z"/><path d="m5.3 8 1.8 1.8 3.6-3.8" fill="none" stroke="#fff" stroke-width="1.6"/></symbol>
+  <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7"/><path d="M8 7v4.5" stroke="#fff" stroke-width="1.6"/><circle cx="8" cy="4.8" r="1" fill="#fff"/></symbol>
+  <symbol id="i-neutral" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="n-grid" viewBox="0 0 16 16"><path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/></symbol>
+  <symbol id="n-topo" viewBox="0 0 16 16"><path d="M7 1h2v4H7zM2 7h12v1.6H2zM2 8h1.6v3H2zm5.2 0h1.6v3H7.2zm5.2 0H14v3h-1.6zM1 11h4v4H1zm5.2 0h4v4h-4zm5.2 0h4v4h-4z"/></symbol>
+  <symbol id="n-bell" viewBox="0 0 16 16"><path d="M8 1a4.5 4.5 0 0 0-4.5 4.5c0 4-1.8 5.5-1.8 5.5h12.6s-1.8-1.5-1.8-5.5A4.5 4.5 0 0 0 8 1zM6.3 13a1.8 1.8 0 0 0 3.4 0z"/></symbol>
+  <symbol id="n-list" viewBox="0 0 16 16"><path d="M1 2h2v2H1zm4 .3h10v1.4H5zM1 7h2v2H1zm4 .3h10v1.4H5zM1 12h2v2H1zm4 .3h10v1.4H5z"/></symbol>
+  <symbol id="n-plug" viewBox="0 0 16 16"><path d="M5 1h1.5v3h3V1H11v3h1v4a4 4 0 0 1-3.2 3.9V15H7.2v-3.1A4 4 0 0 1 4 8V4h1z"/></symbol>
+  <symbol id="n-shield" viewBox="0 0 16 16"><path d="M8 .8 14 3v5c0 3.6-2.6 6.3-6 7.2C4.6 14.3 2 11.6 2 8V3z"/></symbol>
+  <symbol id="n-flask" viewBox="0 0 16 16"><path d="M5.5 1h5v1.4H10v3.8l4.4 7.3A1 1 0 0 1 13.6 15H2.4a1 1 0 0 1-.8-1.5L6 6.2V2.4h-.5z"/></symbol>
+  <symbol id="n-dl" viewBox="0 0 16 16"><path d="M7.3 1h1.4v8.3l2.6-2.6 1 1L8 12 3.7 7.7l1-1 2.6 2.6zM2 13.6h12V15H2z"/></symbol>
+  <symbol id="n-theme" viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5v11a5.5 5.5 0 0 1 0-11z"/></symbol>
+  <symbol id="n-bolt" viewBox="0 0 16 16"><path d="M9 1 3 9h4l-1 6 6-8H8z"/></symbol>
+</svg>
 
-<!-- ═══ Header ═══ -->
-<header class="dashboard-header">
-  <div class="header-title">⚡ EV CHARGER SECURITY DASHBOARD</div>
-  <div class="header-status">
-    <span id="grid-status" class="status-badge status-normal">GRID: NORMAL</span>
-    <span id="mode-badge" class="mode-badge">SIM MODE</span>
-    <span id="clock" class="clock">--:--:--</span>
+<header class="header">
+  <div class="prod"><svg class="ic"><use href="#n-bolt"/></svg><b>GridSentinel</b><span>EV Charging Security</span></div>
+  <nav class="crumbs" aria-label="Breadcrumb">Operations <span>/</span> Site 01 <span>/</span> <b id="crumb">Overview</b></nav>
+  <div class="tools">
+    <div class="src" id="source" data-s="sim"><span class="src-dot"></span><span id="source-txt">Connecting…</span></div>
+    <div>Updated <span class="mono" id="updated">--:--:--</span></div>
+    <button class="hbtn" id="theme" aria-label="Toggle dark theme"><svg class="ic"><use href="#n-theme"/></svg>Theme</button>
   </div>
 </header>
 
-<!-- ═══ Alert Banner ═══ -->
-<div id="alert-banner" class="alert-banner">
-  <span id="alert-text">⚠ THREAT DETECTED</span>
-</div>
+<aside class="side" aria-label="Navigation">
+  <div class="grp">Site 01</div>
+  <nav>
+    <a href="#/overview"><svg class="ic"><use href="#n-grid"/></svg>Overview</a>
+    <a href="#/topology"><svg class="ic"><use href="#n-topo"/></svg>Topology</a>
+    <a href="#/alerts"><svg class="ic"><use href="#n-bell"/></svg>Alerts<span class="count" id="nav-alerts" hidden>0</span></a>
+    <a href="#/chargers"><svg class="ic"><use href="#n-plug"/></svg>Chargers</a>
+    <a href="#/station"><svg class="ic"><use href="#n-shield"/></svg>Physical node</a>
+    <a href="#/events"><svg class="ic"><use href="#n-list"/></svg>Event log</a>
+  </nav>
 
-<!-- ═══ Main Content ═══ -->
-<div class="main-content">
-  <!-- 3D Scene -->
-  <div id="three-container" class="three-container">
-    <div class="distance-badge">
-      SENSOR: <span id="dist-val" class="dist-val">--</span> cm
-      &nbsp;|&nbsp; DOOR: <span id="door-state" class="dist-val">--</span>
+  <section class="harness" id="harness" aria-labelledby="harness-h">
+    <h4 id="harness-h"><svg class="ic"><use href="#n-flask"/></svg>Test harness</h4>
+    <label for="target">Target asset</label>
+    <select class="select" id="target"></select>
+    <div class="btns">
+      <button class="btn sec" data-act="attack" data-type="tamper" title="Simulate the service enclosure being opened">Open door</button>
+      <button class="btn sec" data-act="restore" data-type="tamper" title="Simulate the service enclosure being closed">Close door</button>
+      <button class="btn danger" data-act="attack" data-type="usb" title="Simulate an unauthorized USB device on the controller">Insert USB</button>
+      <button class="btn sec" data-act="restore" data-type="usb" title="Clear the compromise and reconnect the charger">Restore</button>
+    </div>
+    <p>On EVSE-01 these inputs drive the same logic as the physical sensors.</p>
+  </section>
+
+  <div class="foot"><b>Controller</b><br><span id="side-ctrl">Raspberry Pi · Flask</span><br><b>Field I/O</b><br><span id="side-io">Arduino Uno · 9600 baud</span></div>
+</aside>
+
+<main class="main" id="main" data-view="overview">
+  <div class="page-h">
+    <div>
+      <h1 id="page-title">Site overview</h1>
+      <p id="page-sub"></p>
+    </div>
+    <div class="actions">
+      <button class="btn sec" id="export" data-v="overview events"><svg class="ic"><use href="#n-dl"/></svg>Export events (CSV)</button>
     </div>
   </div>
 
-  <!-- Right Panel -->
-  <div class="right-panel">
-    <!-- Fleet Table -->
-    <div class="fleet-panel">
-      <div class="fleet-title">FLEET STATUS</div>
-      <table class="fleet-table">
-        <thead><tr><th>NODE</th><th>TRUST</th><th>STATE</th><th>KW</th></tr></thead>
-        <tbody id="fleet-tbody"></tbody>
-      </table>
-    </div>
-    <!-- Power Gauge -->
-    <div class="gauge-panel">
-      <div class="gauge-title">REAL-TIME POWER METER</div>
-      <canvas id="gauge-canvas" width="380" height="190"></canvas>
-    </div>
+  <div class="note" id="note" role="status" aria-live="polite">
+    <svg class="ic"><use id="note-icon" href="#i-info"/></svg>
+    <div><b id="note-title"></b><span id="note-text"></span></div>
+    <div class="act"><span id="note-hint"></span><button class="btn danger" id="note-btn" hidden>Restore station</button></div>
   </div>
-</div>
 
-<!-- ═══ Red Team Panel ═══ -->
-<div class="redteam-panel">
-  <div class="redteam-title">RED TEAM INJECTION</div>
-  <select id="target-select" class="target-select">
-    <option>EVSE-01</option><option>EVSE-02</option><option>EVSE-03</option><option>EVSE-04</option>
-    <option>EVSE-05</option><option>EVSE-06</option><option>EVSE-07</option><option>EVSE-08</option>
-  </select>
-  <button onclick="window._attack('tamper')" class="btn-attack btn-tamper-on">🔒 Tamper ON</button>
-  <button onclick="window._restore('tamper')" class="btn-attack btn-tamper-off">🔓 Tamper OFF</button>
-  <button onclick="window._attack('usb')" class="btn-attack btn-usb-on">💻 USB ON</button>
-  <button onclick="window._restore('usb')" class="btn-attack btn-usb-off">✓ USB OFF</button>
-</div>
+  <section class="kpis" aria-label="Key indicators" data-v="overview">
+    <div class="kpi"><div class="k">EVSE-01 status</div><div class="v" id="k-station"></div><div class="d" id="k-station-d"></div></div>
+    <div class="kpi"><div class="k">Chargers online</div><div class="v"><span id="k-online">8</span><small>of 8</small></div><div class="d" id="k-online-d">All feeders energized</div></div>
+    <div class="kpi"><div class="k">Site load</div><div class="v"><span id="k-load">0.0</span><small>kW</small></div><canvas id="load-spark" aria-hidden="true"></canvas></div>
+    <div class="kpi"><div class="k">Active alerts</div><div class="v" id="k-alerts">0</div><div class="d" id="k-alerts-d">No open alerts</div></div>
+    <div class="kpi"><div class="k">Maintenance</div><div class="v" id="k-maint"></div><div class="d" id="k-maint-d">No authorized session</div></div>
+  </section>
 
-<!-- ═══ Event Log ═══ -->
-<div class="event-log">
-  <div class="log-header">EVENT LOG</div>
-  <div id="event-log-content"></div>
-</div>
+  <section class="cols">
+    <div class="col">
+    <div class="card" id="topology" data-v="overview topology">
+      <div class="card-h"><h2>Electrical topology</h2><span class="sub">Single-line diagram · select a charger for details</span><div class="tools" data-v="overview"><a class="btn ghost" href="#/topology">Open</a></div></div>
+      <svg class="sld" id="sld" viewBox="0 0 960 340" role="group" aria-label="Single-line diagram of site chargers"></svg>
+      <div class="sld-legend">
+        <span class="st st-ok"><svg class="ic"><use href="#i-ok"/></svg>Nominal</span>
+        <span class="st st-maint"><svg class="ic"><use href="#i-maint"/></svg>Maintenance</span>
+        <span class="st st-warn"><svg class="ic"><use href="#i-warn"/></svg>Throttled</span>
+        <span class="st st-crit"><svg class="ic"><use href="#i-crit"/></svg>Isolated · breaker open</span>
+      </div>
+    </div>
 
-<!-- ═══ Three.js (ES Module via importmap) ═══ -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
+    <div class="card" id="alerts" data-v="overview alerts">
+      <div class="card-h"><h2>Active alerts</h2><span class="sub" id="alerts-sub">0 open</span><div class="tools" data-v="overview"><a class="btn ghost" href="#/alerts">View all</a></div></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Alert ID</th><th>Severity</th><th>Asset</th><th>Condition</th><th>Opened</th><th>Duration</th><th>Status</th></tr></thead>
+          <tbody id="alerts-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="history" data-v="alerts">
+      <div class="card-h"><h2>Resolved this session</h2><span class="sub" id="history-sub">0 resolved</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Alert ID</th><th>Severity</th><th>Asset</th><th>Condition</th><th>Opened</th><th>Closed</th><th>Duration</th></tr></thead>
+          <tbody id="history-body"><tr class="empty"><td colspan="7">No alerts have been resolved yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="chargers" data-v="overview topology chargers">
+      <div class="card-h"><h2>Chargers</h2><span class="sub" id="fleet-sub"></span></div>
+      <div class="tbl-wrap">
+        <table class="click">
+          <thead><tr><th>Asset</th><th>Status</th><th>Trust score</th><th class="num">Output</th><th>Output · 20 s</th><th>Enclosure</th><th>USB</th></tr></thead>
+          <tbody id="fleet-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="output" data-v="chargers">
+      <div class="card-h"><h2>Output by charger</h2><span class="sub">Current output · scale 0–25 kW</span></div>
+      <div class="card-b"><div class="hbars" id="hbars"></div></div>
+    </div>
+    </div>
+    <div class="col">
+    <div class="card" id="station" data-maint="0" data-v="overview station">
+      <div class="card-h"><h2>EVSE-01 · Physical node</h2><div class="tools"><span class="tag blue">Instrumented</span><a class="btn ghost" href="#/station" data-v="overview">Open</a></div></div>
+      <div class="card-b">
+        <div><dl class="kv">
+          <dt>Station state</dt><dd id="kv-state"></dd>
+          <dt>Grid connection</dt><dd id="kv-grid"></dd>
+          <dt>Enclosure</dt><dd id="kv-door"></dd>
+          <dt>USB port (controller)</dt><dd id="kv-usb"></dd>
+          <dt>Alarm LED · D12</dt><dd id="kv-led"></dd>
+          <dt>Buzzer · D6</dt><dd id="kv-buz"></dd>
+          <dt>Field I/O link</dt><dd id="kv-link"></dd>
+          <dt>Trip threshold</dt><dd id="kv-thr">—</dd>
+          <dt>Monitored USB classes</dt><dd>Mass storage · HID</dd>
+        </dl></div>
+        <div>
+        <div class="chart-h"><span>Enclosure distance, HC-SR04 · last 60 s</span><b id="dist-now">—</b></div>
+        <canvas id="dist-chart" role="img" aria-label="Enclosure distance over the last 60 seconds"></canvas>
+        <div class="subsec">
+          <h3>Authorized maintenance <span id="maint-st"></span></h3>
+          <form id="maint-form" autocomplete="off" novalidate>
+            <div class="field">
+              <label for="maint-code">Authorization code</label>
+              <div class="code-row">
+                <input class="input" id="maint-code" type="password" inputmode="numeric" maxlength="8" aria-describedby="maint-err">
+                <button class="btn" type="submit">Start session</button>
+              </div>
+              <span class="err" id="maint-err" role="alert"></span>
+            </div>
+          </form>
+          <div class="maint-on">
+            <div><div class="t2" style="font-size:12px">Session duration</div><div class="v mono" id="maint-timer">00:00:00</div></div>
+            <button class="btn sec" id="maint-end" type="button">End session</button>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="card" id="activity" data-v="station">
+      <div class="card-h"><h2>EVSE-01 activity</h2><span class="sub">Events for this station, newest first</span></div>
+      <div class="log-wrap">
+        <table class="log">
+          <thead><tr><th>Time</th><th>Severity</th><th>Event</th></tr></thead>
+          <tbody id="activity-body"><tr class="empty"><td colspan="3">No events recorded for EVSE-01 yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="events" data-v="overview events">
+        <div class="card-h"><h2>Event log</h2>
+          <div class="tools">
+            <a class="btn ghost" href="#/events" data-v="overview">View all</a>
+            <label class="t3" for="sev-filter" style="font-size:12px">Severity</label>
+            <select class="select sm" id="sev-filter">
+              <option value="">All</option><option value="CRIT">Critical</option><option value="WARN">Warning</option><option value="AUTH">Authorized</option><option value="OK">Resolved</option><option value="INFO">Info</option>
+            </select>
+          </div>
+        </div>
+        <div class="log-wrap">
+          <table class="log">
+            <thead><tr><th>Time</th><th>Severity</th><th>Event</th></tr></thead>
+            <tbody id="log-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="tip" id="tip" hidden></div>
+<div id="toasts" aria-live="polite"></div>
 
 <script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-
 // ══════════════════════════════════════════════════════════════════════════════
-//  GLOBALS
+//  CONSTANTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-const COLORS = {
-  FULL_TRUST: { main: 0xa6e3a1, emissive: 0xa6e3a1, platform: 0x89b4fa },
-  THROTTLED:  { main: 0xf9e2af, emissive: 0xf9e2af, platform: 0xfab387 },
-  ISOLATED:   { main: 0xf38ba8, emissive: 0xf38ba8, platform: 0xf38ba8 },
+const $ = id => document.getElementById(id);
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const SVGNS = 'http://www.w3.org/2000/svg';
+const N = 8, HERO = 0;
+const IDS = Array.from({ length: N }, (_, i) => `EVSE-0${i + 1}`);
+
+const NODE = {
+  FULL_TRUST:  { label: 'Nominal',     tone: 'ok' },
+  MAINTENANCE: { label: 'Maintenance', tone: 'maint' },
+  THROTTLED:   { label: 'Throttled',   tone: 'warn' },
+  ISOLATED:    { label: 'Isolated',    tone: 'crit' },
+};
+const STATION = [
+  { label: 'Nominal',     tone: 'ok',    d: 'Enclosure closed · no USB device' },
+  { label: 'Maintenance', tone: 'maint', d: 'Authorized session · alerts suppressed' },
+  { label: 'Tamper',      tone: 'warn',  d: 'Enclosure open without authorization' },
+  { label: 'Compromised', tone: 'crit',  d: 'Unauthorized USB · isolated from grid' },
+];
+const SEV = {
+  CRIT: { label: 'Critical',   tone: 'crit' },
+  WARN: { label: 'Warning',    tone: 'warn' },
+  AUTH: { label: 'Authorized', tone: 'maint' },
+  OK:   { label: 'Resolved',   tone: 'ok' },
+  INFO: { label: 'Info',       tone: 'info' },
 };
 
-let scene, camera, renderer, labelRenderer, controls, clock;
-let chargerObjects = [];     // Array of charger 3D data
-let currentStates = [];      // Array of state strings per charger
-let particlePositions;       // Float32Array for particle animation
-let particleGeo;
-let lastEventCount = 0;
-let gaugeNeedle = 0;         // Smoothed gauge value
-
-// Charger grid positions: 2 rows of 4
-const POSITIONS = [
-  [-4.5, 0, -2], [-1.5, 0, -2], [1.5, 0, -2], [4.5, 0, -2],
-  [-4.5, 0,  2], [-1.5, 0,  2], [1.5, 0,  2], [4.5, 0,  2],
-];
-const CHARGER_IDS = [
-  'EVSE-01','EVSE-02','EVSE-03','EVSE-04',
-  'EVSE-05','EVSE-06','EVSE-07','EVSE-08',
-];
+// Labels come only from the constant tables above, never from server data.
+const st = (tone, label) => `<span class="st st-${tone}"><svg class="ic"><use href="#i-${tone}"/></svg>${label}</span>`;
+const fmtDur = s => [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(v => String(v).padStart(2, '0')).join(':');
+const fmtClock = d => d.toLocaleTimeString('en-GB', { hour12: false });
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  THREE.JS SCENE SETUP
+//  THEME + NAV
 // ══════════════════════════════════════════════════════════════════════════════
 
-function initScene() {
-  const container = document.getElementById('three-container');
-  const w = container.clientWidth;
-  const h = container.clientHeight;
+$('theme').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('gs-theme', t); } catch {}
+  redrawCharts();
+});
+const VIEWS = {
+  overview: ['Site overview',         '8 chargers · 1 instrumented physical node (EVSE-01) · tamper and USB intrusion monitoring'],
+  topology: ['Electrical topology',   'Single-line diagram of the 415 V distribution to each charger'],
+  alerts:   ['Alerts',                'Active conditions and alerts resolved during this session'],
+  chargers: ['Chargers',              'Status, trust score and output for every charger on site'],
+  station:  ['EVSE-01 physical node', 'Instrumented station: enclosure sensor, USB monitor and field alarm'],
+  events:   ['Event log',             'Security and operational events, newest first'],
+};
+function route() {
+  const v = location.hash.replace(/^#\/?/, '');
+  const view = VIEWS[v] ? v : 'overview';
+  $('main').dataset.view = view;
+  document.querySelectorAll('[data-v]').forEach(e => { e.hidden = !e.dataset.v.split(' ').includes(view); });
+  document.querySelectorAll('.side nav a').forEach(a => {
+    const on = a.getAttribute('href') === '#/' + view;
+    a.classList.toggle('on', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  const [title, sub] = VIEWS[view];
+  $('page-title').textContent = title;
+  $('page-sub').textContent = sub;
+  $('crumb').textContent = title;
+  document.title = `GridSentinel · ${title}`;
+  scrollTo(0, 0);
+  requestAnimationFrame(redrawCharts);
+}
+addEventListener('hashchange', route);
 
-  // Scene
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x080812);
-  scene.fog = new THREE.FogExp2(0x080812, 0.035);
+// ══════════════════════════════════════════════════════════════════════════════
+//  SINGLE-LINE DIAGRAM
+// ══════════════════════════════════════════════════════════════════════════════
 
-  // Camera
-  camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 200);
-  camera.position.set(11, 9, 11);
-  camera.lookAt(0, 0, 0);
+const sldNodes = [];
 
-  // WebGL Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(w, h);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.3;
-  container.appendChild(renderer.domElement);
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.append(e);
+  return e;
+}
+function txt(parent, x, y, cls, text, anchor = 'start') {
+  const t = el('text', { x, y, class: cls, 'text-anchor': anchor }, parent);
+  t.textContent = text;
+  return t;
+}
 
-  // CSS2D Renderer for labels
-  labelRenderer = new CSS2DRenderer();
-  labelRenderer.setSize(w, h);
-  labelRenderer.domElement.style.position = 'absolute';
-  labelRenderer.domElement.style.top = '0';
-  labelRenderer.domElement.style.left = '0';
-  labelRenderer.domElement.style.pointerEvents = 'none';
-  container.appendChild(labelRenderer.domElement);
+function buildSLD() {
+  const svg = $('sld');
+  const X0 = 80, X1 = 880, BUS = 112;
+  txt(svg, 480, 18, 'lbl', 'Utility feed · 11 kV', 'middle');
+  el('line', { x1: 480, y1: 24, x2: 480, y2: 40, class: 'wire' }, svg);
+  el('circle', { cx: 480, cy: 52, r: 12, class: 'xf' }, svg);
+  el('circle', { cx: 480, cy: 68, r: 12, class: 'xf' }, svg);
+  txt(svg, 500, 64, 'lbl', 'TX-1 · 11 kV / 415 V');
+  el('line', { x1: 480, y1: 80, x2: 480, y2: BUS, class: 'wire' }, svg);
+  el('line', { x1: X0 - 20, y1: BUS, x2: X1 + 20, y2: BUS, class: 'bus' }, svg);
+  txt(svg, X0 - 20, BUS - 8, 'lbl', 'LV bus · 415 V');
 
-  // Controls
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 0.4;
-  controls.maxPolarAngle = Math.PI / 2.15;
-  controls.minDistance = 6;
-  controls.maxDistance = 25;
-  controls.target.set(0, 0.5, 0);
+  IDS.forEach((id, i) => {
+    const cx = X0 + i * ((X1 - X0) / (N - 1));
+    const g = el('g', { class: 'node', tabindex: 0, role: 'button', 'aria-label': `${id} details` }, svg);
+    el('line', { x1: cx, y1: BUS, x2: cx, y2: 140, class: 'wire' }, g);
+    el('rect', { x: cx - 7, y: 140, width: 14, height: 14, class: 'brk' }, g);
+    el('line', { x1: cx - 7, y1: 154, x2: cx + 7, y2: 140, class: 'brk-open' }, g);
+    txt(g, cx + 11, 151, 'lbl', `Q${i + 1}`);
+    el('line', { x1: cx, y1: 154, x2: cx, y2: 184, class: 'wire feeder' }, g);
+    el('rect', { x: cx - 50, y: 184, width: 100, height: 132, rx: 2, class: 'box' }, g);
+    el('rect', { x: cx - 50, y: 184, width: 100, height: 4, class: 'bar' }, g);
+    txt(g, cx - 40, 208, 'id', id);
+    if (i === HERO) txt(g, cx - 40, 222, 'phys', 'PHYSICAL');
+    el('circle', { cx: cx - 36, cy: 240, r: 4.5, class: 'dot' }, g);
+    const stT = txt(g, cx - 27, 244, 'meta', '');
+    const kwT = txt(g, cx - 40, 270, 'kw', '');
+    const doorT = txt(g, cx - 40, 290, 'meta', '');
+    const trustT = txt(g, cx - 40, 306, 'meta', '');
+    g.addEventListener('click', () => selectNode(i));
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNode(i); } });
+    sldNodes.push({ g, stT, kwT, doorT, trustT });
+  });
+}
 
-  // Clock
-  clock = new THREE.Clock();
+function updateSLD(chargers) {
+  chargers.forEach((c, i) => {
+    const n = sldNodes[i], s = NODE[c.state];
+    n.g.dataset.tone = s.tone;
+    n.g.dataset.iso = c.state === 'ISOLATED' ? '1' : '0';
+    n.stT.textContent = s.label;
+    n.kwT.textContent = c.state === 'ISOLATED' ? '0.0 kW' : `${c.kw.toFixed(1)} kW`;
+    n.doorT.textContent = `Enclosure ${c.door_open ? 'open' : 'closed'}`;
+    n.trustT.textContent = `Trust ${c.trust}${c.usb ? ' · USB in' : ''}`;
+  });
+}
 
-  // Lights
-  addLights();
+function selectNode(i) {
+  sldNodes.forEach((n, k) => n.g.classList.toggle('sel', k === i));
+  fleetRows.forEach((r, k) => r.tr.classList.toggle('sel', k === i));
+  $('target').value = IDS[i];
+}
 
-  // Ground + Grid
-  addGround();
+// ══════════════════════════════════════════════════════════════════════════════
+//  CHARTS
+// ══════════════════════════════════════════════════════════════════════════════
 
-  // Chargers
-  for (let i = 0; i < 8; i++) {
-    const obj = createCharger(CHARGER_IDS[i], POSITIONS[i][0], POSITIONS[i][2]);
-    scene.add(obj.group);
-    chargerObjects.push(obj);
-    currentStates.push('FULL_TRUST');
+function fitCanvas(cv) {
+  const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const x = cv.getContext('2d');
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  x.clearRect(0, 0, w, h);
+  return { x, w, h };
+}
+
+function drawSpark(cv, values, color, fill) {
+  const { x, w, h } = fitCanvas(cv);
+  if (values.length < 2) return;
+  const lo = Math.min(...values), hi = Math.max(...values), span = Math.max(hi - lo, 1);
+  const px = k => (k / (values.length - 1)) * w, py = v => h - 2 - ((v - lo) / span) * (h - 4);
+  x.beginPath();
+  values.forEach((v, k) => k ? x.lineTo(px(k), py(v)) : x.moveTo(px(k), py(v)));
+  x.strokeStyle = color; x.lineWidth = 1.5; x.lineJoin = 'round'; x.stroke();
+  if (fill) { x.lineTo(w, h); x.lineTo(0, h); x.closePath(); x.globalAlpha = 0.1; x.fillStyle = color; x.fill(); x.globalAlpha = 1; }
+}
+
+const WINDOW_MS = 60000, Y_MAX = 40, PAD = { l: 28, r: 4, t: 6, b: 18 };
+const dist = [];
+let distHover = null, threshold = 10;
+const distCv = $('dist-chart');
+
+function drawDist() {
+  const { x, w, h } = fitCanvas(distCv);
+  const C = { grid: cssv('--border'), t3: cssv('--text-3'), t2: cssv('--text-2'), acc: cssv('--accent'), warn: cssv('--serious'), surf: cssv('--surface') };
+  const pw = w - PAD.l - PAD.r, ph = h - PAD.t - PAD.b, now = Date.now();
+  const X = t => PAD.l + pw - ((now - t) / WINDOW_MS) * pw;
+  const Y = v => PAD.t + ph - (Math.min(v, Y_MAX) / Y_MAX) * ph;
+
+  x.font = '11px "IBM Plex Sans", sans-serif';
+  x.textBaseline = 'middle';
+  [0, 10, 20, 30, 40].forEach(v => {
+    const y = Math.round(Y(v)) + 0.5;
+    x.strokeStyle = C.grid; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(PAD.l, y); x.lineTo(w - PAD.r, y); x.stroke();
+    x.fillStyle = C.t3; x.textAlign = 'right'; x.fillText(v, PAD.l - 6, y);
+  });
+  x.textBaseline = 'alphabetic';
+  [['−60 s', 0, 'left'], ['−30 s', 0.5, 'center'], ['now', 1, 'right']].forEach(([t, f, al]) => { x.fillStyle = C.t3; x.textAlign = al; x.fillText(t, PAD.l + pw * f, h - 3); });
+
+  const ty = Math.round(Y(threshold)) + 0.5;
+  x.setLineDash([4, 3]); x.strokeStyle = C.warn; x.lineWidth = 1.5;
+  x.beginPath(); x.moveTo(PAD.l, ty); x.lineTo(w - PAD.r, ty); x.stroke(); x.setLineDash([]);
+  x.fillStyle = C.t2; x.textAlign = 'right'; x.fillText(`Trip ${threshold.toFixed(0)} cm`, w - PAD.r - 2, ty - 5);
+
+  const pts = dist.filter(p => now - p.t <= WINDOW_MS);
+  if (pts.length > 1) {
+    x.save();
+    x.beginPath(); x.rect(PAD.l, PAD.t - 2, pw, ph + 4); x.clip();
+    if (!pts[pts.length - 1].live) x.setLineDash([4, 3]);
+    x.beginPath();
+    pts.forEach((p, k) => k ? x.lineTo(X(p.t), Y(p.v)) : x.moveTo(X(p.t), Y(p.v)));
+    x.strokeStyle = C.acc; x.lineWidth = 2; x.lineJoin = 'round'; x.stroke();
+    x.restore();
   }
-
-  // Particles
-  addParticles();
-
-  // Resize handler
-  new ResizeObserver(() => {
-    const nw = container.clientWidth;
-    const nh = container.clientHeight;
-    camera.aspect = nw / nh;
-    camera.updateProjectionMatrix();
-    renderer.setSize(nw, nh);
-    labelRenderer.setSize(nw, nh);
-  }).observe(container);
-}
-
-// ── Lights ────────────────────────────────────────────────────────────────
-
-function addLights() {
-  // Ambient
-  scene.add(new THREE.AmbientLight(0x303050, 0.6));
-
-  // Main directional
-  const dir = new THREE.DirectionalLight(0xeeeeff, 0.7);
-  dir.position.set(8, 12, 8);
-  dir.castShadow = true;
-  dir.shadow.mapSize.set(1024, 1024);
-  dir.shadow.camera.near = 1;
-  dir.shadow.camera.far = 30;
-  dir.shadow.camera.left = -10;
-  dir.shadow.camera.right = 10;
-  dir.shadow.camera.top = 10;
-  dir.shadow.camera.bottom = -10;
-  scene.add(dir);
-
-  // Rim light (blue)
-  const rim = new THREE.DirectionalLight(0x4477ff, 0.3);
-  rim.position.set(-5, 8, -5);
-  scene.add(rim);
-}
-
-// ── Ground ────────────────────────────────────────────────────────────────
-
-function addGround() {
-  // Dark reflective ground
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(40, 40),
-    new THREE.MeshStandardMaterial({ color: 0x0a0a18, metalness: 0.85, roughness: 0.35 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  // Outer grid
-  const grid1 = new THREE.GridHelper(40, 40, 0x151530, 0x151530);
-  grid1.position.y = 0.01;
-  scene.add(grid1);
-
-  // Inner brighter grid
-  const grid2 = new THREE.GridHelper(14, 14, 0x252555, 0x1c1c44);
-  grid2.position.y = 0.02;
-  scene.add(grid2);
-
-  // Neon border rectangle on the ground
-  const borderGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-6.5, 0.03, -3.5),
-    new THREE.Vector3( 6.5, 0.03, -3.5),
-    new THREE.Vector3( 6.5, 0.03,  3.5),
-    new THREE.Vector3(-6.5, 0.03,  3.5),
-    new THREE.Vector3(-6.5, 0.03, -3.5),
-  ]);
-  const borderMat = new THREE.LineBasicMaterial({ color: 0x89b4fa, transparent: true, opacity: 0.4 });
-  scene.add(new THREE.Line(borderGeo, borderMat));
-}
-
-// ── Charger Model ─────────────────────────────────────────────────────────
-
-function createCharger(id, x, z) {
-  const group = new THREE.Group();
-
-  // Platform (circle base)
-  const platGeo = new THREE.CylinderGeometry(0.65, 0.65, 0.06, 32);
-  const platMat = new THREE.MeshStandardMaterial({
-    color: 0x1e1e2e, emissive: 0x89b4fa, emissiveIntensity: 0.35,
-    metalness: 0.7, roughness: 0.3,
-  });
-  const platform = new THREE.Mesh(platGeo, platMat);
-  platform.position.y = 0.03;
-  platform.receiveShadow = true;
-  group.add(platform);
-
-  // Main body (tall pillar)
-  const bodyGeo = new THREE.BoxGeometry(0.5, 1.5, 0.35);
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0xa6e3a1, emissive: 0xa6e3a1, emissiveIntensity: 0.12,
-    metalness: 0.25, roughness: 0.55,
-    transparent: true, opacity: 0.88,
-  });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.81;
-  body.castShadow = true;
-  group.add(body);
-
-  // Wireframe edges
-  const edgeMat = new THREE.LineBasicMaterial({ color: 0xa6e3a1, transparent: true, opacity: 0.7 });
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(bodyGeo), edgeMat);
-  edges.position.copy(body.position);
-  group.add(edges);
-
-  // Screen (small display on top-front)
-  const scrGeo = new THREE.BoxGeometry(0.32, 0.2, 0.04);
-  const scrMat = new THREE.MeshStandardMaterial({
-    color: 0x89b4fa, emissive: 0x89b4fa, emissiveIntensity: 0.6,
-    metalness: 0.5, roughness: 0.2,
-  });
-  const screen = new THREE.Mesh(scrGeo, scrMat);
-  screen.position.set(0, 1.3, 0.2);
-  group.add(screen);
-
-  // Top cap
-  const capGeo = new THREE.BoxGeometry(0.54, 0.06, 0.39);
-  const capMat = new THREE.MeshStandardMaterial({ color: 0x45475a, metalness: 0.6, roughness: 0.4 });
-  const cap = new THREE.Mesh(capGeo, capMat);
-  cap.position.y = 1.59;
-  group.add(cap);
-
-  // Point light per charger
-  const pLight = new THREE.PointLight(0xa6e3a1, 0.6, 4);
-  pLight.position.set(0, 1.2, 0.3);
-  group.add(pLight);
-
-  // CSS2D Label
-  const labelDiv = document.createElement('div');
-  labelDiv.className = 'charger-label';
-  labelDiv.textContent = id;
-  const label = new CSS2DObject(labelDiv);
-  label.position.set(0, 2.0, 0);
-  group.add(label);
-
-  group.position.set(x, 0, z);
-
-  return { group, body, bodyMat, edges, edgeMat, platform, platMat, pLight, screen, scrMat, label, labelDiv, id, baseX: x, baseZ: z };
-}
-
-// ── Particles ─────────────────────────────────────────────────────────────
-
-function addParticles() {
-  const count = 250;
-  particleGeo = new THREE.BufferGeometry();
-  particlePositions = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    particlePositions[i * 3]     = (Math.random() - 0.5) * 35;
-    particlePositions[i * 3 + 1] = Math.random() * 12;
-    particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 35;
+  if (distHover) {
+    const hx = Math.round(X(distHover.t)) + 0.5, hy = Y(distHover.v);
+    x.strokeStyle = C.t3; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(hx, PAD.t); x.lineTo(hx, PAD.t + ph); x.stroke();
+    x.beginPath(); x.arc(hx, hy, 4, 0, Math.PI * 2); x.fillStyle = C.acc; x.fill(); x.lineWidth = 2; x.strokeStyle = C.surf; x.stroke();
   }
-  particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-  const pMat = new THREE.PointsMaterial({
-    color: 0x89b4fa, size: 0.04, transparent: true, opacity: 0.35,
-    blending: THREE.AdditiveBlending, depthWrite: false,
+}
+
+const tip = $('tip');
+function showTip(e, title, pairs) {
+  tip.replaceChildren();
+  const b = document.createElement('div');
+  b.textContent = title;
+  b.style.fontWeight = '600';
+  tip.append(b);
+  pairs.forEach(([k, v]) => {
+    const r = document.createElement('div'), a = document.createElement('span'), z = document.createElement('span');
+    r.className = 'row'; a.textContent = k; z.textContent = v;
+    r.append(a, z); tip.append(r);
   });
-  scene.add(new THREE.Points(particleGeo, pMat));
+  tip.hidden = false;
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (e.clientY + 12) + 'px';
 }
+distCv.addEventListener('pointermove', e => {
+  const r = distCv.getBoundingClientRect(), pw = r.width - PAD.l - PAD.r;
+  const t = Date.now() - (1 - (e.clientX - r.left - PAD.l) / pw) * WINDOW_MS;
+  let best = null;
+  for (const p of dist) if (!best || Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+  distHover = best;
+  drawDist();
+  if (best) showTip(e, fmtClock(new Date(best.t)), [['Distance', best.v >= 900 ? 'No echo' : `${best.v.toFixed(1)} cm`], ['Source', best.live ? 'Sensor' : 'Simulated']]);
+});
+distCv.addEventListener('pointerleave', () => { distHover = null; tip.hidden = true; drawDist(); });
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  UPDATE CHARGER VISUALS
-// ══════════════════════════════════════════════════════════════════════════════
-
-function updateChargerVisual(obj, state) {
-  const c = COLORS[state] || COLORS.FULL_TRUST;
-
-  obj.bodyMat.color.setHex(c.main);
-  obj.bodyMat.emissive.setHex(c.emissive);
-  obj.bodyMat.emissiveIntensity = state === 'ISOLATED' ? 0.35 : 0.12;
-  obj.bodyMat.opacity = state === 'ISOLATED' ? 0.65 : 0.88;
-
-  obj.edgeMat.color.setHex(c.main);
-  obj.edgeMat.opacity = state === 'ISOLATED' ? 1.0 : 0.7;
-
-  obj.platMat.emissive.setHex(c.platform);
-  obj.platMat.emissiveIntensity = state === 'ISOLATED' ? 0.7 : 0.35;
-
-  obj.pLight.color.setHex(c.main);
-  obj.pLight.intensity = state === 'ISOLATED' ? 1.5 : 0.6;
-  obj.pLight.distance = state === 'ISOLATED' ? 6 : 4;
-
-  // Label styling
-  obj.labelDiv.className = 'charger-label' +
-    (state === 'THROTTLED' ? ' label-throttled' : '') +
-    (state === 'ISOLATED' ? ' label-isolated' : '');
+const loadHist = [];
+function redrawCharts() {
+  drawDist();
+  drawSpark($('load-spark'), loadHist, cssv('--accent'), true);
+  fleetRows.forEach(r => drawSpark(r.cv, r.hist, cssv('--text-2')));
 }
+addEventListener('resize', redrawCharts);
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  ANIMATION LOOP
+//  CHARGERS TABLE + KPIs
 // ══════════════════════════════════════════════════════════════════════════════
 
-function animate() {
-  requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
+const fleetRows = [];
 
-  // Animate chargers based on state
-  chargerObjects.forEach((obj, i) => {
-    const state = currentStates[i];
-
-    if (state === 'FULL_TRUST') {
-      // Gentle bob
-      obj.group.position.y = Math.sin(t * 1.2 + i * 0.7) * 0.025;
-      obj.group.rotation.z = 0;
-      obj.group.position.x = obj.baseX;
-      obj.group.position.z = obj.baseZ;
-    } else if (state === 'THROTTLED') {
-      // Wobble
-      obj.group.rotation.z = Math.sin(t * 2.5 + i) * 0.025;
-      obj.group.position.y = Math.sin(t * 1.8 + i * 0.5) * 0.018;
-      obj.group.position.x = obj.baseX;
-      obj.group.position.z = obj.baseZ;
-    } else if (state === 'ISOLATED') {
-      // Violent shake
-      obj.group.position.x = obj.baseX + (Math.random() - 0.5) * 0.07;
-      obj.group.position.z = obj.baseZ + (Math.random() - 0.5) * 0.07;
-      obj.group.position.y = Math.sin(t * 6) * 0.04;
-      obj.group.rotation.z = (Math.random() - 0.5) * 0.04;
-      // Pulse emissive
-      obj.bodyMat.emissiveIntensity = 0.25 + Math.sin(t * 10) * 0.2;
-      obj.platMat.emissiveIntensity = 0.5 + Math.sin(t * 8 + 1) * 0.3;
-    }
+function buildFleet() {
+  const body = $('fleet-body'), sel = $('target');
+  IDS.forEach((id, i) => {
+    const tr = document.createElement('tr');
+    tr.tabIndex = 0;
+    tr.innerHTML = `<td><b style="font-weight:600">${id}</b>${i === HERO ? ' <span class="tag blue">Physical</span>' : ''}</td>
+      <td class="s"></td><td><div class="trust"><div class="bar"><i></i></div><span class="tv"></span></div></td>
+      <td class="num kw"></td><td><canvas aria-hidden="true"></canvas></td><td class="door"></td><td class="usb"></td>`;
+    tr.addEventListener('click', () => selectNode(i));
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectNode(i); } });
+    body.append(tr);
+    fleetRows.push({ tr, s: tr.querySelector('.s'), bar: tr.querySelector('.bar i'), tv: tr.querySelector('.tv'), kw: tr.querySelector('.kw'), cv: tr.querySelector('canvas'), door: tr.querySelector('.door'), usb: tr.querySelector('.usb'), hist: [], state: null });
+    sel.add(new Option(id + (i === HERO ? ' (physical)' : ''), id));
+    const lbl = document.createElement('span'), track = document.createElement('div'), val = document.createElement('span');
+    lbl.className = 'lbl'; lbl.textContent = id; track.className = 'track'; track.innerHTML = '<div class="fill"></div>'; val.className = 'val';
+    $('hbars').append(lbl, track, val);
+    fleetRows[i].fill = track.firstChild; fleetRows[i].val = val;
   });
-
-  // Animate particles (drift upward)
-  for (let i = 0; i < particlePositions.length; i += 3) {
-    particlePositions[i + 1] += 0.004;
-    particlePositions[i] += Math.sin(t + i) * 0.001;
-    if (particlePositions[i + 1] > 12) {
-      particlePositions[i + 1] = 0;
-      particlePositions[i] = (Math.random() - 0.5) * 35;
-      particlePositions[i + 2] = (Math.random() - 0.5) * 35;
-    }
-  }
-  particleGeo.attributes.position.needsUpdate = true;
-
-  controls.update();
-  renderer.render(scene, camera);
-  labelRenderer.render(scene, camera);
+  sel.addEventListener('change', () => selectNode(IDS.indexOf(sel.value)));
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  POWER GAUGE (Canvas 2D)
-// ══════════════════════════════════════════════════════════════════════════════
-
-function drawGauge(totalKW) {
-  const canvas = document.getElementById('gauge-canvas');
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width;
-  const H = canvas.height;
-  const cx = W / 2;
-  const cy = H * 0.72;
-  const r = Math.min(W, H) * 0.40;
-  const maxKW = 160;
-
-  // Smooth needle
-  gaugeNeedle += (totalKW - gaugeNeedle) * 0.12;
-
-  ctx.clearRect(0, 0, W, H);
-
-  const startA = Math.PI * 0.8;
-  const endA = Math.PI * 2.2;
-  const sweep = endA - startA;
-
-  // Background arc track
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, startA, endA);
-  ctx.lineWidth = 14;
-  ctx.strokeStyle = 'rgba(69,71,90,0.3)';
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Gradient segments: green → yellow → red
-  const segments = [
-    { end: 0.6, color: '#a6e3a1' },
-    { end: 0.8, color: '#f9e2af' },
-    { end: 1.0, color: '#f38ba8' },
-  ];
-  const pct = Math.min(gaugeNeedle / maxKW, 1);
-  let prevEnd = 0;
-  for (const seg of segments) {
-    const segPct = Math.min(pct, seg.end);
-    if (segPct <= prevEnd) break;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, startA + sweep * prevEnd, startA + sweep * segPct);
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = seg.color;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = seg.color;
-    ctx.shadowBlur = 12;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    prevEnd = segPct;
-  }
-
-  // Threshold markers
-  [0.6, 0.8].forEach(th => {
-    const a = startA + sweep * th;
-    const ix = cx + Math.cos(a) * (r - 12);
-    const iy = cy + Math.sin(a) * (r - 12);
-    const ox = cx + Math.cos(a) * (r + 12);
-    const oy = cy + Math.sin(a) * (r + 12);
-    ctx.beginPath();
-    ctx.moveTo(ix, iy);
-    ctx.lineTo(ox, oy);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(108,112,134,0.5)';
-    ctx.stroke();
+function updateFleet(chargers) {
+  let online = 0, load = 0;
+  const lineCol = cssv('--text-2');
+  chargers.forEach((c, i) => {
+    const r = fleetRows[i], s = NODE[c.state];
+    if (r.state !== c.state) { r.s.innerHTML = st(s.tone, s.label); r.state = c.state; }
+    r.bar.style.width = c.trust + '%';
+    r.tv.textContent = c.trust;
+    r.kw.textContent = c.state === 'ISOLATED' ? '—' : `${c.kw.toFixed(1)} kW`;
+    r.door.textContent = c.door_open ? 'Open' : 'Closed';
+    r.door.className = 'door' + (c.door_open ? '' : ' t3');
+    r.usb.textContent = c.usb ? 'Detected' : '—';
+    r.usb.className = 'usb' + (c.usb ? '' : ' t3');
+    r.fill.style.width = Math.min(100, (c.state === 'ISOLATED' ? 0 : c.kw) / 25 * 100) + '%';
+    r.val.textContent = c.state === 'ISOLATED' ? 'Isolated' : `${c.kw.toFixed(1)} kW`;
+    r.hist.push(c.kw);
+    if (r.hist.length > 80) r.hist.shift();
+    drawSpark(r.cv, r.hist, lineCol);
+    if (c.state !== 'ISOLATED') online++;
+    load += c.kw;
   });
+  $('k-online').textContent = online;
+  $('k-online-d').textContent = online === N ? 'All feeders energized' : `${N - online} breaker${N - online > 1 ? 's' : ''} open`;
+  $('k-load').textContent = load.toFixed(1);
+  loadHist.push(load);
+  if (loadHist.length > 240) loadHist.shift();
+  drawSpark($('load-spark'), loadHist, cssv('--accent'), true);
 
-  // Needle
-  const needleAngle = startA + sweep * pct;
-  const nx = cx + Math.cos(needleAngle) * (r - 20);
-  const ny = cy + Math.sin(needleAngle) * (r - 20);
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(nx, ny);
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = '#cdd6f4';
-  ctx.shadowColor = '#cdd6f4';
-  ctx.shadowBlur = 6;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Center dot
-  ctx.beginPath();
-  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-  ctx.fillStyle = '#89b4fa';
-  ctx.shadowColor = '#89b4fa';
-  ctx.shadowBlur = 8;
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Digital readout
-  const valColor = pct < 0.6 ? '#a6e3a1' : pct < 0.8 ? '#f9e2af' : '#f38ba8';
-  ctx.font = 'bold 26px Consolas';
-  ctx.fillStyle = valColor;
-  ctx.textAlign = 'center';
-  ctx.shadowColor = valColor;
-  ctx.shadowBlur = 10;
-  ctx.fillText(`${gaugeNeedle.toFixed(1)} KW`, cx, cy - 18);
-  ctx.shadowBlur = 0;
-
-  // Label
-  ctx.font = '10px Consolas';
-  ctx.fillStyle = '#6c7086';
-  ctx.fillText('TOTAL GRID LOAD', cx, cy - 2);
-
-  // Zone labels
-  ctx.font = '9px Consolas';
-  const labelR = r + 22;
-  // Green zone
-  let la = startA + sweep * 0.15;
-  ctx.fillStyle = 'rgba(166,227,161,0.4)';
-  ctx.fillText('SAFE', cx + Math.cos(la) * labelR, cy + Math.sin(la) * labelR);
-  // Yellow zone
-  la = startA + sweep * 0.7;
-  ctx.fillStyle = 'rgba(249,226,175,0.4)';
-  ctx.fillText('WARN', cx + Math.cos(la) * labelR, cy + Math.sin(la) * labelR);
-  // Red zone
-  la = startA + sweep * 0.92;
-  ctx.fillStyle = 'rgba(243,139,168,0.4)';
-  ctx.fillText('CRIT', cx + Math.cos(la) * labelR, cy + Math.sin(la) * labelR);
+  const counts = {};
+  chargers.forEach(c => counts[c.state] = (counts[c.state] || 0) + 1);
+  $('fleet-sub').textContent = Object.entries(counts).map(([k, v]) => `${v} ${NODE[k].label.toLowerCase()}`).join(' · ');
+  updateSLD(chargers);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  UI UPDATES (Fleet Table, Alerts, Log, Header)
+//  ALERT QUEUE (derived from current asset conditions)
 // ══════════════════════════════════════════════════════════════════════════════
 
-function updateFleetTable(chargers) {
-  const tbody = document.getElementById('fleet-tbody');
-  const rows = [];
+let alerts = new Map(), alertSeq = 1040;
+const history = [];
+
+function renderHistory() {
+  $('history-body').replaceChildren(...history.map(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="mono"></td><td>${st(a.tone, a.sev)}</td><td></td><td></td><td class="mono t2"></td><td class="mono t2"></td><td class="mono t2"></td>`;
+    [a.id, null, a.asset, a.cond, fmtClock(a.since), fmtClock(a.closed), fmtDur(Math.floor((a.closed - a.since) / 1000))]
+      .forEach((v, k) => { if (v !== null) tr.cells[k].textContent = v; });
+    return tr;
+  }));
+  $('history-sub').textContent = `${history.length} resolved`;
+}
+const SEV_RANK = { crit: 0, warn: 1, maint: 2 };
+
+function updateAlerts(chargers, s) {
+  const next = new Map();
   chargers.forEach(c => {
-    const sc = c.state === 'FULL_TRUST' ? 'green' : c.state === 'THROTTLED' ? 'yellow' : 'red';
-    rows.push(`<tr class="fleet-row${c.state !== 'FULL_TRUST' ? ' row-alert' : ''}">
-      <td class="node-id">${c.id}</td>
-      <td><span class="trust-${sc}">${c.trust}</span></td>
-      <td><span class="state-badge badge-${sc}">${c.state}</span></td>
-      <td class="kw-value">${c.kw.toFixed(1)}</td>
-    </tr>`);
+    if (c.state === 'THROTTLED') next.set(c.id + ':tamper', { tone: 'warn', sev: 'Warning', asset: c.id, cond: 'Enclosure opened without authorization', status: 'Open' });
+    if (c.state === 'ISOLATED') next.set(c.id + ':usb', { tone: 'crit', sev: 'Critical', asset: c.id, cond: 'Unauthorized USB device — isolated from grid', status: c.id === IDS[HERO] && !s.usb_present ? 'Awaiting restore' : 'Open' });
+    if (c.state === 'MAINTENANCE') next.set(c.id + ':maint', { tone: 'maint', sev: 'Authorized', asset: c.id, cond: 'Maintenance session — alerts suppressed', status: 'In progress' });
   });
-  tbody.innerHTML = rows.join('');
-}
-
-function updateAlertBanner(chargers) {
-  const banner = document.getElementById('alert-banner');
-  const gridBadge = document.getElementById('grid-status');
-  const threats = chargers.filter(c => c.state !== 'FULL_TRUST');
-
-  if (threats.length === 0) {
-    banner.classList.remove('active');
-    gridBadge.textContent = 'GRID: NORMAL';
-    gridBadge.className = 'status-badge status-normal';
-    return;
+  for (const [k, v] of next) {
+    const prev = alerts.get(k);
+    v.id = prev ? prev.id : `ALR-${++alertSeq}`;
+    v.since = prev ? prev.since : new Date();
   }
+  let closed = false;
+  for (const [k, v] of alerts) if (!next.has(k)) { history.unshift({ ...v, closed: new Date() }); closed = true; }
+  if (history.length > 50) history.length = 50;
+  if (closed) renderHistory();
+  alerts = next;
 
-  banner.classList.add('active');
-  gridBadge.textContent = 'GRID: UNDER ATTACK';
-  gridBadge.className = 'status-badge status-attack';
-
-  const iso = threats.filter(t => t.state === 'ISOLATED').length;
-  const thr = threats.filter(t => t.state === 'THROTTLED').length;
-  let msg = '⚠ THREAT DETECTED — ';
-  if (iso) msg += `${iso} ISOLATED`;
-  if (iso && thr) msg += ' | ';
-  if (thr) msg += `${thr} THROTTLED`;
-  document.getElementById('alert-text').textContent = msg;
-}
-
-function updateEventLog(events) {
-  if (events.length === lastEventCount) return;
-  lastEventCount = events.length;
-  const el = document.getElementById('event-log-content');
-  el.innerHTML = events.map(e =>
-    `<div class="log-entry"><span class="log-time">[${e.time}]</span> ${e.msg}</div>`
-  ).join('');
-  el.scrollTop = el.scrollHeight;
-}
-
-function updateClock() {
-  const now = new Date();
-  document.getElementById('clock').textContent =
-    now.toLocaleTimeString('en-GB', { hour12: false });
-}
-
-function updateSensorDisplay(data) {
-  const distEl = document.getElementById('dist-val');
-  const doorEl = document.getElementById('door-state');
-  if (data.serial_connected && data.distance >= 0) {
-    distEl.textContent = data.distance.toFixed(1);
-    const evse1 = data.chargers[0];
-    doorEl.textContent = evse1.door_open ? 'OPEN' : 'CLOSED';
-    doorEl.style.color = evse1.door_open ? '#f38ba8' : '#a6e3a1';
-  } else {
-    distEl.textContent = '--';
-    doorEl.textContent = 'N/A';
+  const list = [...alerts.values()].sort((a, b) => SEV_RANK[a.tone] - SEV_RANK[b.tone] || a.since - b.since);
+  const body = $('alerts-body');
+  body.replaceChildren();
+  if (!list.length) {
+    body.innerHTML = '<tr class="empty"><td colspan="7">No active alerts. All monitored assets are within normal parameters.</td></tr>';
   }
-  document.getElementById('mode-badge').textContent =
-    data.serial_connected ? 'LIVE MODE' : 'SIM MODE';
+  list.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="mono"></td><td>${st(a.tone, a.sev)}</td><td></td><td></td><td class="mono t2"></td><td class="mono t2"></td><td></td>`;
+    tr.cells[0].textContent = a.id;
+    tr.cells[2].textContent = a.asset;
+    tr.cells[3].textContent = a.cond;
+    tr.cells[4].textContent = fmtClock(a.since);
+    tr.cells[5].textContent = fmtDur(Math.floor((Date.now() - a.since) / 1000));
+    tr.cells[6].innerHTML = '<span class="tag"></span>';
+    tr.cells[6].firstChild.textContent = a.status;
+    body.append(tr);
+  });
+
+  const crit = list.filter(a => a.tone === 'crit').length, warn = list.filter(a => a.tone === 'warn').length;
+  const open = crit + warn;
+  $('alerts-sub').textContent = `${open} open${list.length > open ? ` · ${list.length - open} authorized` : ''}`;
+  $('k-alerts').innerHTML = open ? st(crit ? 'crit' : 'warn', String(open)) : '0';
+  $('k-alerts-d').textContent = open ? `${crit} critical · ${warn} warning` : 'No open alerts';
+  $('nav-alerts').textContent = open;
+  $('nav-alerts').hidden = !open;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  API POLLING
+//  PHYSICAL NODE
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function fetchState() {
+let stationState = -1;
+
+function kv(id, tone, label, extra) {
+  const dd = $(id);
+  dd.innerHTML = st(tone, label);
+  if (extra) {
+    const t = document.createElement('span');
+    t.className = 't2';
+    t.textContent = ' · ' + extra;   // may contain a USB product string: textContent only
+    dd.firstChild.append(t);
+    dd.title = extra;
+  } else dd.removeAttribute('title');
+}
+
+function updateStation(s) {
+  const S = STATION[s.state];
+  threshold = s.threshold;
+  const live = s.serial_connected && s.distance >= 0;
+  const noEcho = live && s.distance >= 900;
+  const distTxt = noEcho ? 'No echo' : live ? `${s.distance.toFixed(1)} cm` : 'Simulated';
+
+  $('k-station').innerHTML = st(S.tone, S.label);
+  $('k-station-d').textContent = S.d;
+  $('k-maint').innerHTML = s.maintenance ? st('maint', 'Active') : st('neutral', 'Inactive');
+  $('k-maint-d').textContent = s.maintenance ? `Session ${fmtDur(s.maint_elapsed)}` : 'No authorized session';
+
+  kv('kv-state', S.tone, S.label);
+  kv('kv-grid', s.state === 3 ? 'crit' : 'ok', s.state === 3 ? 'Isolated (Q1 open)' : 'Connected');
+  if (s.door_open) kv('kv-door', s.maintenance ? 'maint' : 'warn', s.maintenance ? 'Open, authorized' : 'Open', live ? distTxt : '');
+  else kv('kv-door', 'ok', 'Closed', live ? distTxt : '');
+  if (s.usb_present) kv('kv-usb', s.maintenance ? 'maint' : 'crit', s.maintenance ? 'Authorized device' : 'Unauthorized device', s.usb_devices.join(', '));
+  else kv('kv-usb', s.state === 3 ? 'neutral' : 'ok', s.state === 3 ? 'Removed, latched' : 'No device');
+  kv('kv-led', s.led ? (s.state === 3 ? 'crit' : 'warn') : 'neutral', s.led ? 'On' : 'Off');
+  kv('kv-buz', s.buzzer ? 'crit' : 'neutral', s.buzzer ? 'Sounding' : 'Silent');
+  $('kv-thr').textContent = `${s.threshold.toFixed(1)} cm (3-sample debounce)`;
+  kv('kv-link', s.serial_connected ? 'ok' : 'neutral', s.serial_connected ? 'Connected' : 'Not connected (simulation)');
+
+  const v = live ? s.distance : (s.door_open ? 24 : 6) + (Math.random() - 0.5) * 0.6;
+  dist.push({ t: Date.now(), v, live });
+  while (dist.length && Date.now() - dist[0].t > WINDOW_MS + 1000) dist.shift();
+  drawDist();
+  $('dist-now').textContent = distTxt;
+
+  $('station').dataset.maint = s.maintenance ? '1' : '0';
+  $('maint-st').innerHTML = s.maintenance ? st('maint', 'Active') : st('neutral', 'Inactive');
+  $('maint-timer').textContent = fmtDur(s.maint_elapsed);
+
+  // Inline notification
+  const note = $('note'), btn = $('note-btn');
+  note.className = 'note' + (s.state ? ' show ' + S.tone : '');
+  note.setAttribute('role', s.state === 3 ? 'alert' : 'status');
+  $('note-icon').setAttribute('href', '#i-' + S.tone);
+  btn.hidden = s.state !== 3;
+  $('note-hint').textContent = '';
+  if (s.state === 1) {
+    $('note-title').textContent = 'Authorized maintenance in progress.';
+    $('note-text').textContent = `EVSE-01 tamper and USB alerts are suppressed for the duration of the session (${fmtDur(s.maint_elapsed)}).`;
+  } else if (s.state === 2) {
+    $('note-title').textContent = 'Enclosure tamper at EVSE-01.';
+    $('note-text').textContent = `The service enclosure was opened without an authorized session${live ? ` (sensor ${distTxt}, trip ${s.threshold.toFixed(0)} cm)` : ''}. The charger remains online at reduced output.`;
+  } else if (s.state === 3) {
+    $('note-title').textContent = 'EVSE-01 compromised.';
+    $('note-text').textContent = 'An unauthorized USB device was detected on the station controller. Breaker Q1 is open and the field alarm is active.';
+    btn.disabled = s.usb_present;
+    $('note-hint').textContent = s.usb_present ? 'Remove the device to enable restore' : '';
+  }
+
+  if (stationState !== -1 && s.state !== stationState) {
+    toast(['OK', 'AUTH', 'WARN', 'CRIT'][s.state], ['EVSE-01 returned to normal operation.', 'Maintenance session started at EVSE-01.', 'Enclosure tamper detected at EVSE-01.', 'EVSE-01 isolated: unauthorized USB device.'][s.state]);
+  }
+  stationState = s.state;
+}
+
+$('note-btn').addEventListener('click', async () => {
+  const r = await post('/api/restore', { id: IDS[HERO], type: 'usb' });
+  if (!r.ok) toast('CRIT', r.error || 'Restore failed');
+});
+
+function toast(sev, text) {
+  const s = SEV[sev], el = document.createElement('div');
+  el.className = 'toast ' + s.tone;
+  el.innerHTML = `<span class="st st-${s.tone}"><svg class="ic"><use href="#i-${s.tone}"/></svg></span>`;
+  const t = document.createElement('div');
+  t.textContent = text;
+  el.append(t);
+  $('toasts').append(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  EVENT LOG + CSV EXPORT
+// ══════════════════════════════════════════════════════════════════════════════
+
+const eventsAll = [];
+let lastEventId = 0;
+
+function logRow(e) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="mono t2"></td><td>${st(SEV[e.sev].tone, SEV[e.sev].label)}</td><td></td>`;
+  tr.cells[0].textContent = e.time;
+  tr.cells[2].textContent = e.text;   // may contain device names: textContent only
+  return tr;
+}
+function renderLog() {
+  const f = $('sev-filter').value, body = $('log-body');
+  body.replaceChildren(...eventsAll.filter(e => !f || e.sev === f).slice(-150).reverse().map(logRow));
+}
+function updateLog(events) {
+  const fresh = events.filter(e => e.id > lastEventId);
+  if (!fresh.length) return;
+  lastEventId = fresh[fresh.length - 1].id;
+  const f = $('sev-filter').value;
+  fresh.forEach(e => {
+    const m = /^\[(\w+)\]\s*(.*)$/.exec(e.msg);
+    const ev = { time: e.time, sev: SEV[m?.[1]] ? m[1] : 'INFO', text: m ? m[2] : e.msg };
+    eventsAll.push(ev);
+    if (!f || ev.sev === f) $('log-body').prepend(logRow(ev));
+    if (ev.text.includes(IDS[HERO])) { $('activity-body').querySelector('.empty')?.remove(); $('activity-body').prepend(logRow(ev)); }
+  });
+  if (eventsAll.length > 500) eventsAll.splice(0, eventsAll.length - 500);
+  while ($('activity-body').children.length > 100) $('activity-body').lastChild.remove();
+}
+$('sev-filter').addEventListener('change', renderLog);
+
+$('export').addEventListener('click', () => {
+  // Quote every field; neutralize spreadsheet formula prefixes (device names are untrusted)
+  const cell = v => { let s = String(v); if (/^[=+\-@]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
+  const csv = ['time,severity,event', ...eventsAll.map(e => [e.time, SEV[e.sev].label, e.text].map(cell).join(','))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `gridsentinel-events-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  API
+// ══════════════════════════════════════════════════════════════════════════════
+
+let lastOk = 0;
+
+async function post(url, data) {
   try {
-    const res = await fetch('/api/state');
-    const data = await res.json();
-
-    // Update 3D chargers
-    data.chargers.forEach((c, i) => {
-      if (chargerObjects[i] && currentStates[i] !== c.state) {
-        updateChargerVisual(chargerObjects[i], c.state);
-        currentStates[i] = c.state;
-      }
-    });
-
-    // Update UI panels
-    updateFleetTable(data.chargers);
-    updateAlertBanner(data.chargers);
-    updateEventLog(data.events);
-    updateSensorDisplay(data);
-
-    // Update gauge
-    const totalKW = data.chargers.reduce((s, c) => s + c.kw, 0);
-    drawGauge(totalKW);
-
-  } catch (e) {
-    // API unreachable - ignore silently
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    return { ok: r.ok, ...(await r.json().catch(() => ({}))) };
+  } catch {
+    return { ok: false, error: 'Backend unreachable' };
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  RED TEAM CONTROLS (exposed to onclick)
-// ══════════════════════════════════════════════════════════════════════════════
+async function poll() {
+  try {
+    const d = await (await fetch('/api/state')).json();
+    lastOk = Date.now();
+    updateFleet(d.chargers);
+    updateStation(d.station);
+    updateAlerts(d.chargers, d.station);
+    updateLog(d.events);
+    $('source').dataset.s = d.serial_connected ? 'live' : 'sim';
+    $('source-txt').textContent = d.serial_connected ? 'Live field data' : 'Simulation mode';
+    $('side-io').textContent = d.serial_connected ? 'Arduino Uno · connected' : 'Arduino Uno · not connected';
+    $('updated').textContent = fmtClock(new Date());
+  } catch {
+    if (Date.now() - lastOk > 3000) { $('source').dataset.s = 'down'; $('source-txt').textContent = 'Connection lost'; }
+  }
+  setTimeout(poll, 250);
+}
 
-window._attack = async function(type) {
-  const id = document.getElementById('target-select').value;
-  await fetch('/api/attack', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, type }),
-  });
+const HARNESS_MSG = {
+  'attack:tamper': 'enclosure opened', 'restore:tamper': 'enclosure closed',
+  'attack:usb': 'USB device inserted', 'restore:usb': 'restore requested',
 };
+document.querySelectorAll('#harness [data-act]').forEach(b => b.addEventListener('click', async () => {
+  const id = $('target').value, key = `${b.dataset.act}:${b.dataset.type}`;
+  b.classList.add('busy');
+  const r = await post(`/api/${b.dataset.act}`, { id, type: b.dataset.type });
+  b.classList.remove('busy');
+  if (r.ok) toast('INFO', `Test input sent to ${id}: ${HARNESS_MSG[key]}.`);
+  else toast('CRIT', r.error || 'Request failed');
+}));
 
-window._restore = async function(type) {
-  const id = document.getElementById('target-select').value;
-  await fetch('/api/restore', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, type }),
-  });
-};
+$('maint-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = $('maint-code');
+  const r = await post('/api/maintenance', { on: true, code: input.value });
+  input.value = '';
+  input.setAttribute('aria-invalid', String(!r.ok));
+  $('maint-err').textContent = r.ok ? '' : r.error === 'Backend unreachable' ? r.error : 'Access denied. The authorization code is not valid.';
+});
+$('maint-code').addEventListener('input', e => { e.target.removeAttribute('aria-invalid'); $('maint-err').textContent = ''; });
+$('maint-end').addEventListener('click', () => post('/api/maintenance', { on: false }));
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════════════════════════════
 
-initScene();
-animate();
-fetchState();
-setInterval(fetchState, 500);
-setInterval(updateClock, 1000);
-updateClock();
-
+buildSLD();
+buildFleet();
+selectNode(HERO);
+route();
+poll();
 </script>
 </body>
 </html>
