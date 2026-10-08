@@ -66,8 +66,9 @@ float median3() {
   return a > b ? a : b;
 }
 
-void applyMode(Mode m) {
-  mode = m;
+// uint8_t, not Mode: the IDE's auto-generated prototypes land above the enum
+void applyMode(uint8_t m) {
+  mode = (Mode)m;
   digitalWrite(LED_PIN, m == MODE_OFF ? LOW : HIGH);
   beepOn = (m == MODE_ALARM);
   digitalWrite(BUZZER_PIN, beepOn ? HIGH : LOW);
