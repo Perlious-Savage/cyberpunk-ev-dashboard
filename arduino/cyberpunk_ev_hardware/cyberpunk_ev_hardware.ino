@@ -81,19 +81,39 @@ void handleCommand(const char *cmd) {
   else if (strcmp(cmd, "CMD:ALARM_OFF") == 0) applyMode(MODE_OFF);
 }
 
+unsigned long lastRxMs = 0;
+
+void flushCommand() {
+  cmdBuf[cmdLen] = '\0';
+  if (cmdLen) handleCommand(cmdBuf);
+  cmdLen = 0;
+}
+
 void readCommands() {
   while (Serial.available()) {
     char ch = Serial.read();
-    if (ch == '\r') continue;
-    if (ch == '\n') {
-      cmdBuf[cmdLen] = '\0';
-      handleCommand(cmdBuf);
-      cmdLen = 0;
+    lastRxMs = millis();
+    if (ch == '\n' || ch == '\r') {          // accept LF, CR or CRLF
+      flushCommand();
     } else if (cmdLen < sizeof(cmdBuf) - 1) {
       cmdBuf[cmdLen++] = ch;
     } else {
       cmdLen = 0;  // overflow → drop garbage line
     }
+  }
+  // Serial Monitor set to "No line ending": run the command after a short pause
+  if (cmdLen && millis() - lastRxMs > 50) flushCommand();
+}
+
+// Power-on self-test: LED + buzzer flash twice so wiring can be checked at a glance
+void selfTest() {
+  for (uint8_t k = 0; k < 2; k++) {
+    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(150);
+    digitalWrite(LED_PIN, LOW);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(150);
   }
 }
 
@@ -134,6 +154,7 @@ void setup() {
   pinMode(ECHO_PIN, INPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
+  selfTest();
   applyMode(MODE_OFF);
 
   PCICR  |= _BV(PCIE0);    // enable pin-change interrupts for PORTB (D8–D13)
